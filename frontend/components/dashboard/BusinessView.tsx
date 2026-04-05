@@ -62,7 +62,7 @@ export default function BusinessView() {
     setIsRedeeming(true);
     try {
       const program = await getProgram();
-      const userVoucherAcc = await program.account.userVoucher.fetch(userVoucherAddress);
+      const userVoucherAcc = await (program as any).account.userVoucher.fetch(userVoucherAddress);
       const ownerBase58 = userVoucherAcc.owner.toBase58();
 
       await redeemVoucher(userVoucherAddress, ownerBase58, 1);
