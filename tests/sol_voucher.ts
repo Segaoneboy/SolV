@@ -11,7 +11,7 @@ describe("sol_voucher", () => {
   const program = anchor.workspace.SolVoucher as Program<SolVoucher>;
   
   const voucherName = "CoffeePass_v2_" + Math.floor(Math.random() * 1000);
-  const description = "Абонемент на 5 чашек кофе в НГТУ";
+  const description = "Абонемент на 5 чашек кофе";
   const imageUrl = "https://coffee.rwa/image.png";
   const unitPrice = new anchor.BN(0.1 * LAMPORTS_PER_SOL);
   const totalUnits = 5;
