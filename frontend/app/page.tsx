@@ -55,7 +55,7 @@ export default function LandingPage() {
           </div>
           
           <h1 className="text-7xl md:text-[120px] font-black mb-10 tracking-tighter leading-[0.9] bg-gradient-to-b from-white via-white to-slate-600 bg-clip-text text-transparent">
-            Vouchers <br/> done right.
+            Сертификаты <br/> как надо
           </h1>
           
           <p className="text-slate-400 text-lg md:text-xl max-w-2xl mb-16 leading-relaxed">
@@ -64,7 +64,6 @@ export default function LandingPage() {
 
           <div className="flex flex-col sm:flex-row gap-6 w-full max-w-2xl justify-center">
             {authenticated ? (
-              /* КНОПКА ЛИЧНОГО КАБИНЕТА (Центрирована и по размеру как остальные) */
               <button
                 onClick={() => router.push('/dashboard')}
                 className="group relative w-full sm:w-[400px] px-10 py-6 bg-indigo-600 rounded-[2.5rem] font-bold text-2xl transition-all shadow-[0_10px_40px_rgba(79,70,229,0.3)] hover:shadow-[0_15px_50px_rgba(79,70,229,0.4)] hover:-translate-y-1 active:scale-95"
@@ -73,7 +72,6 @@ export default function LandingPage() {
                 <span className="absolute right-8 top-1/2 -translate-y-1/2 text-white/50 group-hover:translate-x-1.5 transition-transform">→</span>
               </button>
             ) : (
-              /* ВЫБОР РОЛИ (Если не авторизован) */
               <>
                 <button
                   onClick={() => handleLogin('user')}
@@ -97,7 +95,7 @@ export default function LandingPage() {
 
         {/* MARKETPLACE PREVIEW */}
         <section className="max-w-7xl mx-auto px-8">
-        <MarketplaceGrid limit={3} title="Featured Assets" />
+        <MarketplaceGrid limit={3} title="Последние ваучеры" />
         
         <div className="mt-12 text-center">
           <a href="/marketplace" className="text-indigo-400 font-black uppercase tracking-widest hover:text-white transition-colors">

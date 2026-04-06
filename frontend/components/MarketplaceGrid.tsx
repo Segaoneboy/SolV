@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from 'react-hot-toast';
 import { useState, useEffect, useRef } from 'react';
 import { useVoucherProgram } from '@/hooks/useVoucherProgram';
 import { usePrivy } from '@privy-io/react-auth';
@@ -7,11 +8,13 @@ import { useWallets } from '@privy-io/react-auth/solana';
 import VoucherCardLayout from '@/components/UI/VoucherCardLayout';
 
 interface MarketplaceGridProps {
-  limit?: number; // Опционально: сколько карточек показать (например, 3 для главной)
+  limit?: number; 
   title?: string;
 }
 
 export default function MarketplaceGrid({ limit, title }: MarketplaceGridProps) {
+
+
   const [series, setSeries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [buyingId, setBuyingId] = useState<string | null>(null);
@@ -30,7 +33,6 @@ export default function MarketplaceGrid({ limit, title }: MarketplaceGridProps) 
       setLoading(true);
       const data = await fetchAllVoucherSeries();
       if (data) {
-        // ЖЕСТКАЯ ФИЛЬТРАЦИЯ: только активные и с юнитами > 0
         const activeOnly = data.filter((s: any) => 
           s.account.isActive && getVal(s.account.remainingUnits) > 0
         );
@@ -50,45 +52,62 @@ export default function MarketplaceGrid({ limit, title }: MarketplaceGridProps) 
   }, [ready, wallets.length]);
 
   const handleBuy = async (id: string) => {
-    // 1. Если Privy еще не готов, ничего не делаем
     if (!ready) return;
 
-    // 2. Если кошелька НЕТ (юзер гость) — сразу вызываем окно логина
+    // Проверка кошелька перед покупкой
     if (wallets.length === 0) {
-        console.log("Гость пытается купить, открываем Privy...");
+        toast('Connect your wallet to continue', { icon: '🔐' });
         login();
         return;
     }
 
-    // 3. Если кошелек есть, идем дальше
     if (buyingId) return;
     setBuyingId(id);
 
-    try {
-        const tx = await purchaseVoucher(id);
-        alert(`Успех! Транзакция: ${tx.slice(0, 8)}...`);
-        await loadData(true); 
-    } catch (e: any) {
-        console.error("Purchase error:", e);
+    await toast.promise(
+        purchaseVoucher(id),
+        {
+            loading: 'Preparing transaction...',
+            success: (tx: any) => {
+                loadData(true); 
+                return `Success! Voucher purchased.`;
+            },
+            error: (err: any) => {
+                const msg = err.message || "";
+                
+                if (msg.includes("closed") || msg.includes("rejected") || msg.includes("cancelled")) {
+                    return "Purchase cancelled"; 
+                }
+                
+                // Ошибка "уже куплено"
+                if (msg.includes("already in use") || msg.includes("0x0")) {
+                    return "You already own this voucher!";
+                }
 
-        // 4. Перехватываем ту самую ошибку из ReadOnly режима
-        if (e.message?.includes("Необходимо подключить кошелек")) {
-        login();
-        } else if (e.message?.includes("already in use")) {
-        alert("У вас уже есть этот ваучер!");
-        } else {
-        alert("Ошибка при покупке: " + (e.message || "Неизвестная ошибка"));
+                return "Transaction failed. Please try again.";
+            }
+        },
+        {
+            style: {
+                minWidth: '250px',
+                borderRadius: '16px',
+                background: '#0F172A',
+                color: '#fff',
+                border: '1px solid #1E293B'
+            },
+            success: { duration: 5000,  },
+            error: { duration: 4000,  }
         }
-    } finally {
+    ).finally(() => {
         setBuyingId(null);
-    }
-    };
+    });
+  };
 
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {[1, 2, 3].map(n => (
-          <div key={n} className="h-[480px] bg-slate-900/40 rounded-[3rem] animate-pulse border border-slate-800" />
+          <div key={n} className="h-[520px] bg-slate-900/40 rounded-[3rem] animate-pulse border border-slate-800" />
         ))}
       </div>
     );
@@ -104,7 +123,7 @@ export default function MarketplaceGrid({ limit, title }: MarketplaceGridProps) 
 
       {displayItems.length === 0 ? (
         <div className="py-20 text-center border-2 border-dashed border-slate-800 rounded-[3rem]">
-          <p className="text-slate-500 font-medium italic">Нет доступных активов на продажу.</p>
+          <p className="text-slate-500 font-medium italic">Активных ваучеров RWA не найдено.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -120,25 +139,33 @@ export default function MarketplaceGrid({ limit, title }: MarketplaceGridProps) 
                 key={addr}
                 image={data.imageUrl}
                 name={data.name}
-                description={data.description || "No description"}
+                description={data.description || "No description provided"}
                 statusBadge="● Available"
                 price={price}
                 statsLeft={{ label: "Price", value: "SOL" }}
                 statsRight={{ label: "Stock", value: `${rem}/${tot}` }}
                 progress={(rem / tot) * 100}
-                footerLeft={{ label: "Asset ID", value: addr.slice(0, 8) }}
-                footerRight={{ label: "Type", value: "RWA NFT" }}
+                
+                // Передаем новые поля для юридической проверки
+                documentHash={data.documentHash}
+                documentUrl={data.documentUrl}
+                
+                footerRight={{ 
+                  label: "Valid Until", 
+                  value: new Date(getVal(data.expiryDate) * 1000).toLocaleDateString() 
+                }}
+                
                 actionButton={
                   <button 
                     onClick={() => handleBuy(addr)}
                     disabled={!!buyingId}
-                    className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest transition-all ${
+                    className={`px-6 py-3 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all shadow-lg ${
                       buyingId === addr 
-                      ? 'bg-slate-800 text-slate-500 animate-pulse' 
-                      : 'bg-white text-black hover:bg-indigo-500 hover:text-white shadow-xl shadow-white/5 active:scale-95'
+                      ? 'bg-slate-800 text-slate-500 animate-pulse cursor-not-allowed' 
+                      : 'bg-white text-black hover:bg-indigo-500 hover:text-white active:scale-95'
                     }`}
                   >
-                    {buyingId === addr ? 'Processing...' : 'Buy Voucher'}
+                    {buyingId === addr ? 'Wait...' : 'Buy Voucher'}
                   </button>
                 }
               />

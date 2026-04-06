@@ -112,6 +112,7 @@ export function useVoucherProgram() {
     description: string;
     imageUrl: string;
     documentHash: string;
+    documentUrl: string;
     unitPrice: string;
     totalUnits: string;
     expiryDays: string;
@@ -136,6 +137,7 @@ export function useVoucherProgram() {
           data.description,
           data.imageUrl,
           data.documentHash,
+          data.documentUrl,
           unitPriceBN,
           parseInt(data.totalUnits),
           expiryTimestamp
@@ -143,6 +145,7 @@ export function useVoucherProgram() {
         .accounts({
           voucherConfig: configPDA,
           vaultPda: vaultPDA,
+          //@ts-ignore
           authority: program.provider.publicKey,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
@@ -162,11 +165,21 @@ export function useVoucherProgram() {
   const fetchMyVoucherSeries = async () => {
   const program = await getProgram();
   if (!program) return [];
+  const userPublicKey = program.provider.publicKey;
+  if (!userPublicKey || userPublicKey.equals(PublicKey.default)) return [];
 
   try {
-    
-    const all = await program.account.voucherConfig.all();
-    return all.filter(s => s.account.authority.equals(program.provider.publicKey));
+    //@ts-ignore
+    const all = await program.account.voucherConfig.all([
+      { dataSize: 1126},
+      {
+        memcmp: {
+          offset: 8,
+          bytes: userPublicKey.toBase58(),
+        }
+      }
+    ]);
+    return all.filter((s:any) => s.account.authority.equals(program.provider.publicKey));
 
   } catch (err) {
     console.error("Fetch Error:", err);
@@ -182,10 +195,15 @@ const fetchMyUserVouchers = async () => {
 
   try {
     // Ищем все аккаунты UserVoucher в блокчейне
+    //@ts-ignore
     const vouchers = await program.account.userVoucher.all([
+      {
+        dataSize: 74
+      },
       {
         memcmp: {
           offset: 8, // Пропускаем 8 байт дискриминатора Anchor
+          //@ts-ignore
           bytes: userPublicKey.toBase58(), // Фильтруем по твоему кошельку
         },
       },
@@ -207,8 +225,13 @@ const fetchAllVoucherSeries = async () => {
   }
   try {
     // Получаем ВСЕ аккаунты этого типа без фильтрации
-    const all = await program.account.voucherConfig.all();
-    console.log("Fetched from chain:", all.length, "items");
+    //@ts-ignore
+    const all = await program.account.voucherConfig.all([
+      {
+        dataSize: 1126
+      }
+    ]);
+    console.log("Fetched from chain (filtered by size):", all.length, "items");
     return all;
   } catch (err) {
     console.error("Critical Fetch Error:", err);
@@ -216,15 +239,19 @@ const fetchAllVoucherSeries = async () => {
   }
 };
 
-const redeemVoucher = async (userVoucherAddress: string, units: number) => {
-  const program = await getProgram(); // ДОБАВЛЕНО
+const redeemVoucher = async (userVoucherAddress: string, ownerAddr: string, units: number) => {
+  const program = await getProgram(); 
   if (!program) throw new Error("Программа не готова");
   
-  const userPublicKey = program.provider.publicKey; // ДОБАВЛЕНО
+  const walletPublicKey = program.provider.publicKey;
+  if (!walletPublicKey) throw new Error("Wallet not connected");
 
+  const userVoucherPubKey = new PublicKey(userVoucherAddress);
+  const ownerPublicKey = new PublicKey(ownerAddr); // <-- Ключ владельца ваучера
+  
   try {
-    const userVoucherPubkey = new PublicKey(userVoucherAddress);
-    const userVoucherData = await program.account.userVoucher.fetch(userVoucherPubkey);
+    //@ts-ignore
+    const userVoucherData = await program.account.userVoucher.fetch(userVoucherPubKey);
     const configPubkey = userVoucherData.config;
     
     const [vaultPda] = PublicKey.findProgramAddressSync(
@@ -232,22 +259,74 @@ const redeemVoucher = async (userVoucherAddress: string, units: number) => {
       program.programId
     );
 
-    // ИСПРАВЛЕНЫ ИМЕНА АККАУНТОВ НА camelCase
+    // PDA для user_voucher нужно вычислять через owner, а не напрямую брать адрес
+    const [userVoucherPDA] = PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("user_voucher"),
+        ownerPublicKey.toBuffer(),       // <-- seeds[1] = owner
+        configPubkey.toBuffer(),         // <-- seeds[2] = config
+      ],
+      program.programId
+    );
+
     const tx = await program.methods
-      .redeemUnit(units)
+      .redeemUnit(
+        ownerPublicKey,              // <-- owner_pubkey как instruction argument
+        new anchor.BN(units)         // <-- units_to_redeem
+      )
       .accounts({
-        authority: userPublicKey,
-        voucherConfig: configPubkey,    
-        userVoucher: userVoucherPubkey, 
-        vaultPda: vaultPda,             
+        authority: walletPublicKey,        // Бизнес (подписант, authority конфига)
+        voucherConfig: configPubkey,
+        userVoucher: userVoucherPDA,       // <-- Используем пересчитанный PDA
+        ownerAccount: ownerPublicKey,      // <-- Аккаунт владельца (для возврата rent)
+        vaultPda: vaultPda,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
       .rpc();
 
-    console.log("✅ Redeem success! TX:", tx);
     return tx;
-  } catch (err) {
-    console.error("❌ Redeem error:", err);
+  } catch (err: any) {
+    console.error("❌ Redeem Critical Error:", err);
+    throw new Error(err.message || "Redeem failed");
+  }
+};
+
+const refundVoucher = async (configAddress: string) => {
+  const program = await getProgram();
+  if (!program) throw new Error("Wallet not ready");
+
+  const configPubkey = new PublicKey(configAddress);
+  const userPubkey = program.provider.publicKey;
+
+  const [userVoucherPDA] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("user_voucher"),
+      userPubkey!.toBuffer(),
+      configPubkey.toBuffer(),
+    ],
+    program.programId
+  );
+
+  const [vaultPDA] = getVaultPDA(configPubkey);
+
+  try {
+    // ИСПОЛЬЗУЕМ ИМЯ ИЗ ТВОЕГО IDL: refundAndClose (camelCase для JS)
+    const tx = await program.methods
+      .refundAndClose() 
+      .accounts({
+        //@ts-ignore
+        buyer: userPubkey,
+        voucherConfig: configPubkey,
+        userVoucher: userVoucherPDA,
+        vaultPda: vaultPDA,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+
+    console.log("✅ Refund success:", tx);
+    return tx;
+  } catch (err: any) {
+    console.error("❌ Refund error:", err);
     throw err;
   }
 };
@@ -263,6 +342,7 @@ const purchaseVoucher = async (configAddress: string) => {
   const [userVoucherPDA] = PublicKey.findProgramAddressSync(
     [
       Buffer.from("user_voucher"),
+      //@ts-ignore
       userPubkey.toBuffer(),
       configPubkey.toBuffer(),
     ],
@@ -284,6 +364,7 @@ const purchaseVoucher = async (configAddress: string) => {
     const tx = await program.methods
       .purchaseVoucher(1) 
       .accounts({
+        //@ts-ignore
         buyer: userPubkey,
         voucherConfig: configPubkey,
         userVoucher: userVoucherPDA,
@@ -299,5 +380,5 @@ const purchaseVoucher = async (configAddress: string) => {
   }
 };
 
-  return { getProgram, createVoucherSeries, fetchMyVoucherSeries, redeemVoucher, fetchMyUserVouchers, purchaseVoucher, fetchAllVoucherSeries };
+  return { getProgram, createVoucherSeries, fetchMyVoucherSeries, redeemVoucher, refundVoucher , fetchMyUserVouchers, purchaseVoucher, fetchAllVoucherSeries };
 }

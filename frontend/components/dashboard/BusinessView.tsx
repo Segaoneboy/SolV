@@ -20,6 +20,7 @@ export default function BusinessView() {
     description: '',
     imageUrl: '',
     documentHash: '',
+    documentUrl: '',
     unitPrice: '', 
     totalUnits: '',
     expiryDays: '7',
@@ -30,10 +31,9 @@ export default function BusinessView() {
   const loadVouchers = async () => {
     try {
       const data = await fetchMyVoucherSeries();
-      // Сохраняем полный массив данных, чтобы рассчитать общие продажи
       setVouchers(data || []);
     } catch (err) {
-      console.error("Failed to load vouchers:", err);
+      console.error("Не удалось загрузить ваучеры:", err);
     }
   };
 
@@ -62,22 +62,25 @@ export default function BusinessView() {
     setIsRedeeming(true);
     try {
       const program = await getProgram();
+      if (!program) throw new Error("Программа не готова");
+
       const userVoucherAcc = await (program as any).account.userVoucher.fetch(userVoucherAddress);
       const ownerBase58 = userVoucherAcc.owner.toBase58();
+      
+      const configAddress = userVoucherAcc.config.toBase58();
 
       await redeemVoucher(userVoucherAddress, ownerBase58, 1);
       
       alert("Успешно погашено!");
       await loadVouchers(); 
     } catch (err: any) {
-      console.error("Redeem error:", err);
+      console.error("Ошибка при погашении:", err);
       alert("Ошибка: " + (err.message || "Не удалось списать юнит"));
     } finally {
       setIsRedeeming(false);
     }
   };
 
-  // Фильтруем список для отображения карточек (только те, где есть остаток)
   const activeCards = vouchers.filter(v => getVal(v.account.remainingUnits) > 0);
   
 
@@ -89,92 +92,126 @@ export default function BusinessView() {
         <div className="bg-[#0B1120] border border-slate-800 p-8 rounded-[2.5rem] shadow-2xl sticky top-6">
           <h3 className="text-2xl font-black mb-6 text-white uppercase italic tracking-tighter">Новая серия RWA</h3>
           
-          <form onSubmit={handleCreateVoucher} className="space-y-4">
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Название проекта</label>
-              <input 
-                type="text" 
-                placeholder="Coffee Pass #1"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-white outline-none"
-                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={handleCreateVoucher} className="space-y-5">
+            {/* Название и Цена */}
+            <div className="space-y-4">
               <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Цена (SOL)</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest flex justify-between">
+                  Название серии 
+                </label>
                 <input 
-                  type="number" step="0.001" placeholder="0.05"
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-white font-mono outline-none"
-                  onChange={(e) => setFormData({...formData, unitPrice: e.target.value})}
+                  type="text" 
+                  placeholder="Luxury Coffee Pass #1"
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-white outline-none placeholder:text-slate-700"
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
                   required
                 />
               </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Эмиссия (шт)</label>
-                <input 
-                  type="number" placeholder="100"
-                  className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-white font-mono outline-none"
-                  onChange={(e) => setFormData({...formData, totalUnits: e.target.value})}
-                  required
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Цена (SOL)</label>
+                  <input 
+                    type="number" step="0.001" placeholder="0.05"
+                    className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-white font-mono outline-none"
+                    onChange={(e) => setFormData({...formData, unitPrice: e.target.value})}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Тираж (Units)</label>
+                  <input 
+                    type="number" placeholder="100"
+                    className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-white font-mono outline-none"
+                    onChange={(e) => setFormData({...formData, totalUnits: e.target.value})}
+                    required
+                  />
+                </div>
               </div>
             </div>
 
-            {/* URL Обложки и другие поля... */}
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">URL Обложки</label>
-              <input 
-                type="url" 
-                placeholder="https://..."
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-xs text-slate-400 outline-none"
-                onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Описание оферты</label>
-              <textarea 
-                placeholder="Условия использования, что дает ваучер..."
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 h-24 resize-none focus:border-indigo-500 transition-all text-sm text-slate-300 outline-none"
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
-                required
-              />
-            </div>
+            {/* Описание и Ссылка на документ */}
+            <div className="pt-2 space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Описание оферты</label>
+                <textarea 
+                  placeholder="Укажите, что именно получает клиент (например: 10 чашек кофе любого объема)..."
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 h-24 resize-none focus:border-indigo-500 transition-all text-sm text-slate-300 outline-none placeholder:text-slate-700"
+                  onChange={(e) => setFormData({...formData, description: e.target.value})}
+                  required
+                />
+              </div>
 
-            <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Юридический Proof</label>
-              <input 
-                type="text" 
-                placeholder="SHA-256 или ссылка"
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-xs text-slate-400 font-mono outline-none"
-                onChange={(e) => setFormData({...formData, documentHash: e.target.value})}
-                required
-              />
+              <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-2xl space-y-3">
+                <div>
+                  <label className="block text-[10px] font-black text-indigo-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-2">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    Юридическое подтверждение
+                  </label>
+                  <input 
+                    type="text" 
+                    placeholder="https://ipfs.io/ipfs/..."
+                    className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 focus:border-indigo-500 transition-all text-[11px] text-indigo-200 font-mono outline-none placeholder:text-slate-700"
+                    onChange={(e) => setFormData({...formData, documentHash: e.target.value})}
+                    required
+                  />
+                </div>
+                <p className="text-[9px] text-slate-500 leading-tight italic px-1">
+                  Вставьте SHA-256 хеш договора. Это подтверждает легитимность вашего RWA актива.
+                </p>
+              </div>
             </div>
-
             <div>
-              <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Срок действия</label>
-              <select 
-                className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all appearance-none text-white cursor-pointer outline-none"
-                onChange={(e) => setFormData({...formData, expiryDays: e.target.value})}
-              >
-                <option value="7">7 дней</option>
-                <option value="30">30 дней</option>
-                <option value="90">90 дней</option>
-                <option value="365">1 год</option>
-              </select>
+                <label className="block text-[10px] font-black text-emerald-400 uppercase mb-2 ml-1 tracking-widest">
+                  URL Документа (Подтверждение)
+                </label>
+                <input 
+                  type="url" 
+                  placeholder="https://my-business.com/terms.pdf"
+                  className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 focus:border-emerald-500 transition-all text-[10px] text-emerald-200 font-mono outline-none"
+                  onChange={(e) => setFormData({...formData, documentUrl: e.target.value})}
+                  required
+                />
+              </div>
+
+            {/* Обложка и Срок */}
+            <div className="grid grid-cols-1 gap-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">URL Обложки (Image)</label>
+                <input 
+                  type="url" 
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all text-xs text-slate-400 outline-none"
+                  onChange={(e) => setFormData({...formData, imageUrl: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest">Срок действия (Expiry)</label>
+                <select 
+                  className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-3.5 focus:border-indigo-500 transition-all appearance-none text-white cursor-pointer outline-none font-bold text-sm"
+                  onChange={(e) => setFormData({...formData, expiryDays: e.target.value})}
+                >
+                  <option value="7">7 дней</option>
+                  <option value="30">30 дней</option>
+                  <option value="90">90 дней</option>
+                  <option value="90">180 дней (Рекомендуется)</option>
+                  <option value="365">1 год</option>
+                </select>
+              </div>
             </div>
 
             <button 
               type="submit"
               disabled={isMinting}
-              className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${
-                isMinting ? 'bg-slate-800 text-slate-500 animate-pulse' : 'bg-white text-black hover:bg-indigo-500 hover:text-white shadow-xl shadow-white/5'
+              className={`w-full py-4 mt-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all duration-300 ${
+                isMinting 
+                  ? 'bg-slate-800 text-slate-500 animate-pulse' 
+                  : 'bg-white text-black hover:bg-indigo-500 hover:text-white shadow-[0_0_30px_rgba(255,255,255,0.05)] hover:shadow-indigo-500/20'
               }`}
             >
-              {isMinting ? 'Запись в блокчейн...' : 'Выпустить серию'}
+              {isMinting ? 'Запись в блокчейн...' : 'Запустить серию'}
             </button>
           </form>
         </div>
@@ -187,7 +224,6 @@ export default function BusinessView() {
           <WalletAddress />
         </div>
 
-        {/* СТАТИСТИКА — Считается по ВСЕМУ массиву vouchers */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
           <div className="bg-[#0B1120] border border-slate-800 p-8 rounded-[2.5rem] relative overflow-hidden group">
             <p className="text-[10px] font-black uppercase text-indigo-400 mb-2 tracking-widest">Продано юнитов (Total)</p>
@@ -204,7 +240,6 @@ export default function BusinessView() {
 
         <RedeemTerminal onRedeem={handleRedeem} isProcessing={isRedeeming} />
 
-        {/* СЕТКА КАРТОЧЕК — Показываем только activeCards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
           {activeCards.length === 0 ? (
             <div className="col-span-full py-20 text-center border-2 border-dashed border-slate-800 rounded-[2.5rem]">
@@ -227,7 +262,8 @@ export default function BusinessView() {
                   statsLeft={{ label: "Price", value: "SOL" }}
                   statsRight={{ label: "Units", value: `${rem} / ${tot}` }}
                   progress={(rem / tot) * 100}
-                  footerLeft={{ label: "ID", value: v.publicKey.toBase58() }}
+                  documentHash={data.documentHash}
+                  documentUrl={data.documentUrl}
                   footerRight={{ label: "Exp", value: new Date(getVal(data.expiryDate) * 1000).toLocaleDateString() }}
                 />
               );

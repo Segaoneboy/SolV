@@ -2,7 +2,13 @@
 
 import { useState } from 'react';
 import { PublicKey } from '@solana/web3.js';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import dynamic from "next/dynamic";
+
+const Scanner: any = dynamic(
+  () => import('@yudiel/react-qr-scanner').then((mod: any) => mod.Scanner || mod.default?.Scanner || mod),
+  { ssr: false }
+);
+
 
 interface RedeemTerminalProps {
   onRedeem: (address: string) => Promise<void>;
@@ -18,7 +24,7 @@ export default function RedeemTerminal({ onRedeem, isProcessing }: RedeemTermina
     if (!address) return;
     
     try {
-      new PublicKey(address); // Валидация
+      new PublicKey(address); 
       await onRedeem(address);
       setAddress('');
       setShowScanner(false);
@@ -27,11 +33,10 @@ export default function RedeemTerminal({ onRedeem, isProcessing }: RedeemTermina
     }
   };
 
-  // Обработка результата сканирования
   const handleScan = (result: string) => {
     if (result) {
       setAddress(result);
-      setShowScanner(false); // Закрываем камеру после успешного скана
+      setShowScanner(false); 
     }
   };
 
@@ -42,8 +47,8 @@ export default function RedeemTerminal({ onRedeem, isProcessing }: RedeemTermina
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 12h8M12 8v8"/></svg>
         </div>
         <div>
-          <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Terminal</h3>
-          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Redeem RWA Units</p>
+          <h3 className="text-xl font-black text-white uppercase italic tracking-tighter">Терминал</h3>
+          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Использовать ваучер</p>
         </div>
       </div>
 
@@ -68,17 +73,17 @@ export default function RedeemTerminal({ onRedeem, isProcessing }: RedeemTermina
         {showScanner && (
           <div className="aspect-square bg-black rounded-3xl border border-slate-800 relative overflow-hidden shadow-inner">
             <Scanner
-                onScan={(detectedCodes) => {
+                onScan={(detectedCodes: any) => {
                     if (detectedCodes.length > 0) {
                         handleScan(detectedCodes[0].rawValue);
                     }
                 }}
-                onError={(error) => console.log(error?.message)}
+                onError={(error: any) => console.log(error?.message)}
                 styles={{
                     container: { width: '100%', height: '100%' }
                 }}
                 components={{
-                    audio: false, // Чтобы не пищало при каждом скане
+                    audio: false, 
                 }}
             />
             {/* Оверлей сканера */}

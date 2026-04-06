@@ -27,15 +27,11 @@ export default function DashboardPage() {
     );
   }
 
-  // 2. Логика определения роли
-  // В будущем тут может быть запрос к БД, но для хакатона 
-  // можно завязаться на твой email или сохраненную роль в localStorage
   const userRole = typeof window !== 'undefined' ? localStorage.getItem('solv_role') : 'user';
   const isAdmin = user?.email?.address === "твой@email.com" || userRole === 'business';
 
   return (
     <div className="min-h-screen bg-[#020617] text-white selection:bg-indigo-500/30">
-      {/* Фоновое свечение (как на главной, но спокойнее) */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[30%] h-[30%] bg-indigo-600/5 blur-[120px] rounded-full"></div>
       </div>
@@ -48,8 +44,8 @@ export default function DashboardPage() {
                 SolV
               </span>
               <div className="hidden md:flex gap-6 text-sm font-medium text-slate-400">
-                <button className="hover:text-white transition">Маркетплейс</button>
-                <button className="hover:text-white transition">Поддержка</button>
+                <button className="hover:text-white transition" onClick={() => router.push('/marketplace')}>Маркетплейс</button>
+                <a className="hover:text-white transition" href='https://t.me/sega_oneboy'>Поддержка</a>
               </div>
             </div>
 

@@ -15,6 +15,7 @@ export default function WalletAddress() {
   const solanaWallet = user?.linkedAccounts.find(
     (a) => a.type === 'wallet' && a.chainType === 'solana'
   );
+  //@ts-ignore
   const address = solanaWallet?.address;
 
   const fetchBalance = async () => {
