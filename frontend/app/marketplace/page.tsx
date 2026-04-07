@@ -3,24 +3,12 @@ import MarketplaceGrid from '@/components/MarketplaceGrid';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Используй Link вместо router.push для ссылок
 import { usePrivy } from '@privy-io/react-auth';
-import { useEffect } from 'react';
 
 export default function MarketplaceView() {
-  const router = useRouter();
-  const { logout, ready, authenticated } = usePrivy();
-
-  // Защита роута: если не авторизован — на выход
-  useEffect(() => {
-    if (ready && !authenticated) {
-      router.push('/');
-    }
-  }, [ready, authenticated, router]);
-
-  if (!ready) return null; // Или красивый скелетон загрузки
+  const { logout} = usePrivy();
 
   return (
     <div className="min-h-screen bg-[#020617]">
-      {/* HEADER / NAV — Лучше вынести в отдельный компонент */}
       <header className="sticky top-0 z-50 border-b border-slate-900/80 bg-[#020617]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-20 flex justify-between items-center">
           <div className="flex items-center gap-8">
