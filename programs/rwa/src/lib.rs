@@ -7,9 +7,9 @@ declare_id!("ADQjPmwcq7mTgW4FHuopimbKPzQrpcikAkpsNHT18p7K");
 pub mod sol_voucher {
     use super::*;
 
-    /// Инициализация новой серии RWA-ваучеров бизнесом
     pub fn initialize_voucher(
         ctx: Context<InitializeVoucher>,
+        id: String, 
         name: String,
         description: String,
         image_url: String,
@@ -21,6 +21,7 @@ pub mod sol_voucher {
     ) -> Result<()> {
         let voucher_config = &mut ctx.accounts.voucher_config;
         voucher_config.authority = ctx.accounts.authority.key();
+        voucher_config.id = id;
         voucher_config.name = name;
         voucher_config.description = description;
         voucher_config.image_url = image_url;
@@ -34,11 +35,10 @@ pub mod sol_voucher {
         voucher_config.vault_pda = ctx.accounts.vault_pda.key();
         voucher_config.bump = ctx.bumps.voucher_config;
         
-        msg!("RWA Series Created: {}", voucher_config.name);
+        msg!("RWA Series Created with ID: {}", voucher_config.id);
         Ok(())
     }
 
-    /// Покупка юнитов. Деньги блокируются в Vault PDA.
     pub fn purchase_voucher(ctx: Context<PurchaseVoucher>, amount_to_buy: u16) -> Result<()> {
         let voucher_config = &mut ctx.accounts.voucher_config;
         let clock = Clock::get()?;
@@ -70,23 +70,16 @@ pub mod sol_voucher {
         Ok(())
     }
 
-    /// Погашение юнитов. Деньги уходят бизнесу.
     pub fn redeem_unit(ctx: Context<RedeemUnit>, _owner_pubkey: Pubkey, units_to_redeem: u16) -> Result<()> {
         let user_voucher = &mut ctx.accounts.user_voucher;
-        
         require!(user_voucher.remaining_units >= units_to_redeem, VoucherError::NoUnitsLeft);
-        
         user_voucher.remaining_units -= units_to_redeem;
 
         let total_payout = ctx.accounts.voucher_config.unit_price.checked_mul(units_to_redeem as u64)
             .ok_or(VoucherError::MathOverflow)?;
 
         let config_key = ctx.accounts.voucher_config.key();
-        let seeds = &[
-            b"vault".as_ref(),
-            config_key.as_ref(),
-            &[ctx.bumps.vault_pda],
-        ];
+        let seeds = &[b"vault".as_ref(), config_key.as_ref(), &[ctx.bumps.vault_pda]];
         let signer_seeds = &[&seeds[..]];
 
         let cpi_ctx = CpiContext::new_with_signer(
@@ -99,43 +92,25 @@ pub mod sol_voucher {
         );
         transfer(cpi_ctx, total_payout)?;
 
-        // ГАРАНТИРОВАННОЕ ЗАКРЫТИЕ ПРИ 0 ЮНИТОВ
         if user_voucher.remaining_units == 0 {
             let owner_info = ctx.accounts.owner_account.to_account_info();
             let voucher_info = ctx.accounts.user_voucher.to_account_info();
-            
             let dest_starting_lamports = owner_info.lamports();
-            **owner_info.lamports.borrow_mut() = dest_starting_lamports
-                .checked_add(voucher_info.lamports())
-                .unwrap();
+            **owner_info.lamports.borrow_mut() = dest_starting_lamports.checked_add(voucher_info.lamports()).unwrap();
             **voucher_info.lamports.borrow_mut() = 0;
-
-            // Затираем данные, чтобы аккаунт перестал существовать для Anchor
             let mut data = voucher_info.data.borrow_mut();
             data.fill(0);
-            
-            msg!("Voucher fully redeemed. Rent returned, data cleared.");
         }
-
         Ok(())
     }
 
-    /// Полный возврат средств пользователю и закрытие аккаунта
     pub fn refund_and_close(ctx: Context<RefundVoucher>) -> Result<()> {
         let remaining_units = ctx.accounts.user_voucher.remaining_units;
-        
-        let refund_amount = (remaining_units as u64)
-            .checked_mul(ctx.accounts.voucher_config.unit_price)
-            .ok_or(VoucherError::MathOverflow)?;
-        
+        let refund_amount = (remaining_units as u64).checked_mul(ctx.accounts.voucher_config.unit_price).ok_or(VoucherError::MathOverflow)?;
         require!(refund_amount > 0, VoucherError::NothingToRefund);
 
         let config_key = ctx.accounts.voucher_config.key();
-        let seeds = &[
-            b"vault".as_ref(), 
-            config_key.as_ref(), 
-            &[ctx.bumps.vault_pda]
-        ];
+        let seeds = &[b"vault".as_ref(), config_key.as_ref(), &[ctx.bumps.vault_pda]];
         let signer_seeds = &[&seeds[..]];
 
         let cpi_ctx = CpiContext::new_with_signer(
@@ -148,11 +123,8 @@ pub mod sol_voucher {
         );
         transfer(cpi_ctx, refund_amount)?;
 
-        // Возвращаем юниты обратно в продажу
         let voucher_config = &mut ctx.accounts.voucher_config;
         voucher_config.remaining_units += remaining_units;
-
-        msg!("Refund successful. Units returned to pool.");
         Ok(())
     }
 
@@ -162,28 +134,20 @@ pub mod sol_voucher {
     }
 }
 
-// --- Структуры аккаунтов ---
-
 #[derive(Accounts)]
-#[instruction(name: String, description: String, image_url: String, document_hash: String, document_url: String)]
+#[instruction(id: String, name: String)] 
 pub struct InitializeVoucher<'info> {
     #[account(
         init, 
         payer = authority, 
-        space = 8 + 32 + 44 + 512 + 204 + 68 + 204 + 8 + 2 + 2 + 8 + 1 + 32 + 1,
-        seeds = [b"config", name.as_bytes()], 
+        space = 8 + 32 + 44 + 44 + 512 + 204 + 68 + 204 + 8 + 2 + 2 + 8 + 1 + 32 + 1,
+        seeds = [b"config", id.as_bytes()], 
         bump
     )]
     pub voucher_config: Account<'info, VoucherConfig>,
-
-    #[account(
-        mut,
-        seeds = [b"vault", voucher_config.key().as_ref()],
-        bump
-    )]
+    #[account(mut, seeds = [b"vault", voucher_config.key().as_ref()], bump)]
     /// CHECK: PDA Vault
     pub vault_pda: AccountInfo<'info>,
-
     #[account(mut)]
     pub authority: Signer<'info>,
     pub system_program: Program<'info, System>,
@@ -216,14 +180,10 @@ pub struct RedeemUnit<'info> {
     pub authority: Signer<'info>, 
     #[account(mut)]
     pub voucher_config: Account<'info, VoucherConfig>,
-    #[account(
-        mut, 
-        seeds = [b"user_voucher", owner_pubkey.as_ref(), voucher_config.key().as_ref()], 
-        bump
-    )]
+    #[account(mut, seeds = [b"user_voucher", owner_pubkey.as_ref(), voucher_config.key().as_ref()], bump)]
     pub user_voucher: Account<'info, UserVoucher>,
     #[account(mut, address = user_voucher.owner)]
-    /// CHECK: Получатель Rent
+    /// CHECK: Recipient
     pub owner_account: AccountInfo<'info>,
     #[account(mut, seeds = [b"vault", voucher_config.key().as_ref()], bump)]
     /// CHECK: PDA Vault
@@ -237,12 +197,7 @@ pub struct RefundVoucher<'info> {
     pub buyer: Signer<'info>,
     #[account(mut)]
     pub voucher_config: Account<'info, VoucherConfig>,
-    #[account(
-        mut, 
-        close = buyer, 
-        seeds = [b"user_voucher", buyer.key().as_ref(), voucher_config.key().as_ref()],
-        bump
-    )]
+    #[account(mut, close = buyer, seeds = [b"user_voucher", buyer.key().as_ref(), voucher_config.key().as_ref()], bump)]
     pub user_voucher: Account<'info, UserVoucher>,
     #[account(mut, seeds = [b"vault", voucher_config.key().as_ref()], bump)]
     /// CHECK: PDA Vault
@@ -257,11 +212,10 @@ pub struct UpdateConfig<'info> {
     pub authority: Signer<'info>,
 }
 
-// --- Состояние ---
-
 #[account]
 pub struct VoucherConfig {
     pub authority: Pubkey,
+    pub id: String,
     pub name: String,
     pub description: String,
     pub image_url: String,
@@ -285,10 +239,10 @@ pub struct UserVoucher {
 
 #[error_code]
 pub enum VoucherError {
-    #[msg("No units left in your voucher.")] NoUnitsLeft,
-    #[msg("Series sold out.")] NotEnoughUnitsInSeries,
-    #[msg("Voucher series expired.")] VoucherExpired,
-    #[msg("Contract is currently paused.")] ContractPaused,
+    #[msg("No units left.")] NoUnitsLeft,
+    #[msg("Sold out.")] NotEnoughUnitsInSeries,
+    #[msg("Expired.")] VoucherExpired,
+    #[msg("Paused.")] ContractPaused,
     #[msg("Nothing to refund.")] NothingToRefund,
-    #[msg("Math calculation overflow.")] MathOverflow,
+    #[msg("Math overflow.")] MathOverflow,
 }

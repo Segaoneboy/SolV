@@ -2,9 +2,9 @@ import { PublicKey } from '@solana/web3.js';
 
 const PROGRAM_ID = new PublicKey("ADQjPmwcq7mTgW4FHuopimbKPzQrpcikAkpsNHT18p7K");
 
-export const getVoucherConfigPDA = (name: string) => {
+export const getVoucherConfigPDA = (id: string) => {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("config"), Buffer.from(name)],
+    [Buffer.from("config"), Buffer.from(id)],
     PROGRAM_ID
   );
 };

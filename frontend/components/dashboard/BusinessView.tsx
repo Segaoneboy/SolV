@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import WalletAddress from './WalletAdress';
 import { useVoucherProgram } from '@/hooks/useVoucherProgram';
 import { useWallets } from '@privy-io/react-auth/solana';
@@ -45,9 +46,10 @@ export default function BusinessView() {
 
   const handleCreateVoucher = async (e: React.FormEvent) => {
     e.preventDefault();
+    const id = uuidv4();
     setIsMinting(true);
     try {
-      await createVoucherSeries(formData);
+      await createVoucherSeries({...formData,id});
       alert(`Серия "${formData.name}" успешно создана!`);
       await loadVouchers(); 
     } catch (err: any) {
@@ -85,7 +87,7 @@ export default function BusinessView() {
   
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 p-4">
+    <div className="flex flex-col lg:grid lg:grid-cols-3 gap-8 lg:gap-10 sm:p-4 pb-20">
       
       {/* ЛЕВАЯ ПАНЕЛЬ: ФОРМА */}
       <section className="lg:col-span-1 space-y-6">
@@ -97,7 +99,7 @@ export default function BusinessView() {
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest flex justify-between">
-                  Название серии (Уникальное)
+                  Название серии
                 </label>
                 <input 
                   type="text" 
@@ -219,8 +221,8 @@ export default function BusinessView() {
 
       {/* ПРАВАЯ ПАНЕЛЬ: УПРАВЛЕНИЕ */}
       <section className="lg:col-span-2 space-y-8">
-        <div className="flex justify-between items-center">
-          <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter">Менеджмент</h3>
+        <div className="flex flex-col md:flex-row  justify-between items-center">
+          <h3 className="text-3xl font-black text-white italic uppercase tracking-tighter py-4">Менеджмент</h3>
           <WalletAddress />
         </div>
 

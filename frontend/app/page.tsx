@@ -54,7 +54,7 @@ export default function LandingPage() {
             <span className="text-indigo-400">◆</span> Real World Assets on Solana
           </div>
           
-          <h1 className="text-7xl md:text-[120px] font-black mb-10 tracking-tighter leading-[0.9] bg-gradient-to-b from-white via-white to-slate-600 bg-clip-text text-transparent">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl  font-black mb-10 tracking-tighter leading-[0.9] bg-gradient-to-b from-white via-white to-slate-600 bg-clip-text text-transparent">
             Сертификаты <br/> как надо
           </h1>
           

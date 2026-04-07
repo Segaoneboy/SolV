@@ -19,10 +19,8 @@ export function useVoucherProgram() {
   };
 
   const getProgram = async (): Promise<anchor.Program | null> => {
-    // 1. Настройка базового подключения к RPC
     const connection = new Connection("https://api.devnet.solana.com", "confirmed");
     
-    // Получаем кошелек из Privy (если он есть)
     const privyWallet = getPrivyWallet();
 
     // --- СЦЕНАРИЙ 1: ПОЛЬЗОВАТЕЛЬ НЕ АВТОРИЗОВАН (READ-ONLY) ---
@@ -62,7 +60,6 @@ export function useVoucherProgram() {
 
         const serialized = tx.serialize({ requireAllSignatures: false });
 
-        // Вызываем подпись через Privy
         const signedBytes = await signTransaction({
           transaction: new Uint8Array(serialized),
           wallet: privyWallet,
@@ -70,7 +67,6 @@ export function useVoucherProgram() {
 
         let signedTx: Transaction;
 
-        // Твоя кастомная логика парсинга ответов Privy
         if (signedBytes instanceof Uint8Array) {
           signedTx = Transaction.from(Buffer.from(signedBytes));
         } else if ((signedBytes as any)?.signedTransaction) {
@@ -108,6 +104,7 @@ export function useVoucherProgram() {
 };
 
   const createVoucherSeries = async (data: {
+    id: string,
     name: string;
     description: string;
     imageUrl: string;
@@ -120,7 +117,7 @@ export function useVoucherProgram() {
     const program = await getProgram();
     if (!program) throw new Error("Кошелёк не готов");
 
-    const [configPDA] = getVoucherConfigPDA(data.name);
+    const [configPDA] = getVoucherConfigPDA(data.id);
     const [vaultPDA] = getVaultPDA(configPDA);
 
     const unitPriceBN = new anchor.BN(
@@ -133,6 +130,7 @@ export function useVoucherProgram() {
     try {
       const txSignature = await program.methods
         .initializeVoucher(
+          data.id,
           data.name,
           data.description,
           data.imageUrl,
@@ -171,7 +169,7 @@ export function useVoucherProgram() {
   try {
     //@ts-ignore
     const all = await program.account.voucherConfig.all([
-      { dataSize: 1126},
+      { dataSize: 1170},
       {
         memcmp: {
           offset: 8,
@@ -194,7 +192,6 @@ const fetchMyUserVouchers = async () => {
   const userPublicKey = program.provider.publicKey;
 
   try {
-    // Ищем все аккаунты UserVoucher в блокчейне
     //@ts-ignore
     const vouchers = await program.account.userVoucher.all([
       {
@@ -202,14 +199,13 @@ const fetchMyUserVouchers = async () => {
       },
       {
         memcmp: {
-          offset: 8, // Пропускаем 8 байт дискриминатора Anchor
+          offset: 8, 
           //@ts-ignore
-          bytes: userPublicKey.toBase58(), // Фильтруем по твоему кошельку
+          bytes: userPublicKey.toBase58(), 
         },
       },
     ]);
 
-    // Возвращаем массив объектов { publicKey, account }
     return vouchers;
   } catch (err) {
     console.error("Ошибка при поиске ваучеров пользователя:", err);
@@ -224,11 +220,10 @@ const fetchAllVoucherSeries = async () => {
     return [];
   }
   try {
-    // Получаем ВСЕ аккаунты этого типа без фильтрации
     //@ts-ignore
     const all = await program.account.voucherConfig.all([
       {
-        dataSize: 1126
+        dataSize: 1170
       }
     ]);
     console.log("Fetched from chain (filtered by size):", all.length, "items");
@@ -247,7 +242,7 @@ const redeemVoucher = async (userVoucherAddress: string, ownerAddr: string, unit
   if (!walletPublicKey) throw new Error("Wallet not connected");
 
   const userVoucherPubKey = new PublicKey(userVoucherAddress);
-  const ownerPublicKey = new PublicKey(ownerAddr); // <-- Ключ владельца ваучера
+  const ownerPublicKey = new PublicKey(ownerAddr); 
   
   try {
     //@ts-ignore
@@ -259,26 +254,25 @@ const redeemVoucher = async (userVoucherAddress: string, ownerAddr: string, unit
       program.programId
     );
 
-    // PDA для user_voucher нужно вычислять через owner, а не напрямую брать адрес
     const [userVoucherPDA] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_voucher"),
-        ownerPublicKey.toBuffer(),       // <-- seeds[1] = owner
-        configPubkey.toBuffer(),         // <-- seeds[2] = config
+        ownerPublicKey.toBuffer(),      
+        configPubkey.toBuffer(),        
       ],
       program.programId
     );
 
     const tx = await program.methods
       .redeemUnit(
-        ownerPublicKey,              // <-- owner_pubkey как instruction argument
-        new anchor.BN(units)         // <-- units_to_redeem
+        ownerPublicKey,              
+        new anchor.BN(units)         
       )
       .accounts({
-        authority: walletPublicKey,        // Бизнес (подписант, authority конфига)
+        authority: walletPublicKey,       
         voucherConfig: configPubkey,
-        userVoucher: userVoucherPDA,       // <-- Используем пересчитанный PDA
-        ownerAccount: ownerPublicKey,      // <-- Аккаунт владельца (для возврата rent)
+        userVoucher: userVoucherPDA,       
+        ownerAccount: ownerPublicKey,      
         vaultPda: vaultPda,
         systemProgram: anchor.web3.SystemProgram.programId,
       })
@@ -310,7 +304,6 @@ const refundVoucher = async (configAddress: string) => {
   const [vaultPDA] = getVaultPDA(configPubkey);
 
   try {
-    // ИСПОЛЬЗУЕМ ИМЯ ИЗ ТВОЕГО IDL: refundAndClose (camelCase для JS)
     const tx = await program.methods
       .refundAndClose() 
       .accounts({
@@ -338,7 +331,6 @@ const purchaseVoucher = async (configAddress: string) => {
   const configPubkey = new PublicKey(configAddress);
   const userPubkey = program.provider.publicKey;
 
-  // 1. Находим PDA для UserVoucher (Seeds: "user_voucher", buyer, voucher_config)
   const [userVoucherPDA] = PublicKey.findProgramAddressSync(
     [
       Buffer.from("user_voucher"),
@@ -349,7 +341,6 @@ const purchaseVoucher = async (configAddress: string) => {
     program.programId
   );
 
-  // 2. Находим PDA для Vault (Seeds: "vault", voucher_config)
   const [vaultPDA] = PublicKey.findProgramAddressSync(
     [
       Buffer.from("vault"),
@@ -359,8 +350,6 @@ const purchaseVoucher = async (configAddress: string) => {
   );
 
   try {
-    // Вызываем метод ИМЕННО так, как он описан в твоем JSON (purchaseVoucher)
-    // И передаем 1 (количество покупаемых юнитов), так как в IDL есть аргумент amount_to_buy
     const tx = await program.methods
       .purchaseVoucher(1) 
       .accounts({
