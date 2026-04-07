@@ -97,7 +97,7 @@ export default function BusinessView() {
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1 tracking-widest flex justify-between">
-                  Название серии 
+                  Название серии (Уникальное)
                 </label>
                 <input 
                   type="text" 

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import UserView from '@/components/dashboard/UserView';
 import BusinessView from '@/components/dashboard/BusinessView';
-import WalletAddress from '@/components/dashboard/WalletAdress';
 
 export default function DashboardPage() {
   const { ready, authenticated, user, logout } = usePrivy();
