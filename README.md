@@ -133,9 +133,9 @@ Note: To enable Privy Authentication, make sure to add your NEXT_PUBLIC_PRIVY_AP
 - [x] Unified RWA Marketplace: High-performance Next.js platform for browsing and purchasing.
 - [x] Invisible Web3 (Privy): Social/Email onboarding with secure embedded wallets.
 - [x] Merchant Dashboard: Interface for voucher issuance and real-time monitoring.
-- [] Secondary Market: Built-in DEX for trading and reselling unused RWA vouchers.
-- [] Solana Mobile Integration: Native dApp support using SMS and Seed Vault security.
-- [] State Compression (pNFTs): Scaling to millions of vouchers with near-zero rent costs.
+- [ ] Secondary Market: Built-in DEX for trading and reselling unused RWA vouchers.
+- [ ] Solana Mobile Integration: Native dApp support using SMS and Seed Vault security.
+- [ ] State Compression (pNFTs): Scaling to millions of vouchers with near-zero rent costs.
 
 Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
