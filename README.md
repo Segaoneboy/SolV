@@ -7,7 +7,7 @@
 
 > **SolV** is a decentralized platform for tokenizing Real-World Assets (RWA), specifically programmable vouchers, tickets, and service credits. We bridge the gap between physical retail and Solana's liquidity.
 
-[Live Demo](#) · [Video Walkthrough](#) · [Docs](docs/) · [Colosseum Submission](#)
+[Live Demo](https://solv-taupe.vercel.app) · [Docs](docs/) · [Architecture](docs/architecture.md)
 
 ---
 
@@ -15,7 +15,7 @@
 
 ---
 
-## Submission to 2026 Solana National Hackathon
+## Built for the 2026 Solana National Hackathon
 
 | Name | Role | Contact |
 |------|------|---------|
@@ -143,9 +143,9 @@ Full roadmap: [docs/roadmap.md](docs/roadmap.md)
 
 ## Resources
 
-- [Project Presentation](#)
-- [Video Demo](#)
-- [Live Application](#)
+- Architecture: [docs/architecture.md](docs/architecture.md)
+- Product notes: [docs/product.md](docs/product.md)
+- Live application: https://solv-taupe.vercel.app
 - [Telegram](https://t.me/sega_oneboy)
 
 ---
